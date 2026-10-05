@@ -1,0 +1,34 @@
+# Bases locales pour développer et lancer les tests d'intégration.
+# Identifiants calqués sur ceux que Cassiopée génère (utilisateur postgres,
+# base app). Ports hôtes décalés : 3306 est souvent déjà pris en local.
+#
+#   docker compose up -d --wait postgres
+#   CANARY_TEST_POSTGRES_URL=postgresql://postgres:canary@localhost:15432/app \
+#     go test -race -tags integration ./...
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: canary
+      POSTGRES_DB: app
+    ports:
+      - "15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # L'app elle-même, construite depuis le Dockerfile, branchée sur PostgreSQL.
+  canary:
+    build: .
+    user: "1000:1000"
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://postgres:canary@postgres:5432/app
+      STARTUP_DELAY: "5"
+      HELLO: world
+    depends_on:
+      postgres:
+        condition: service_healthy

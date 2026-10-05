@@ -57,6 +57,17 @@ func runWeb(ctx context.Context, cfg Config, pod string) int {
 		Environ: os.Environ,
 	}
 
+	if cfg.DB != nil {
+		store, err := Open(*cfg.DB)
+		if err != nil {
+			slog.Error("base inutilisable, l'app démarre sans", "erreur", err)
+		} else {
+			defer store.Close()
+			d.DB = NewMonitor(store, *cfg.DB, pod, time.Now)
+			go d.DB.Run(ctx, DBPeriod)
+		}
+	}
+
 	srv := &http.Server{
 		Addr:              ":" + strconv.Itoa(cfg.Port),
 		Handler:           NewServer(d),

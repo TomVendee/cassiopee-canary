@@ -80,8 +80,63 @@ func NewServer(d Deps) http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("POST /api/upload", handleUpload)
+	mux.HandleFunc("POST /api/db/write", func(w http.ResponseWriter, r *http.Request) {
+		if d.DB == nil {
+			http.Error(w, "base non configurée (DATABASE_URL vide)", http.StatusConflict)
+			return
+		}
+		if err := d.DB.Write(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /api/db/credentials", func(w http.ResponseWriter, r *http.Request) {
+		handleCredentials(w, r, d.DB)
+	})
 
 	return stripPrefix(requireToken(d.Cfg.Token, mux))
+}
+
+// maxSmallBody borne les corps JSON courts (identifiants, battements).
+const maxSmallBody = 1 << 10
+
+// decodeSmallJSON lit un corps JSON d'au plus 1 Ko. En cas d'erreur, la
+// réponse est déjà écrite (413 ou 400) et la fonction renvoie false.
+func decodeSmallJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxSmallBody)).Decode(v)
+	var tooBig *http.MaxBytesError
+	switch {
+	case errors.As(err, &tooBig):
+		http.Error(w, "corps trop gros", http.StatusRequestEntityTooLarge)
+		return false
+	case err != nil:
+		http.Error(w, "JSON invalide", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+// handleCredentials teste des identifiants fournis par le formulaire. Il ne
+// prend que l'utilisateur et le mot de passe : l'hôte reste celui de
+// DATABASE_URL, on ne peut donc pas s'en servir pour sonder le réseau.
+func handleCredentials(w http.ResponseWriter, r *http.Request, m *Monitor) {
+	if m == nil {
+		http.Error(w, "base non configurée (DATABASE_URL vide)", http.StatusConflict)
+		return
+	}
+	var in struct {
+		User     string `json:"user"`
+		Password string `json:"password"`
+	}
+	if !decodeSmallJSON(w, r, &in) {
+		return
+	}
+	if in.User == "" || in.Password == "" {
+		http.Error(w, "utilisateur et mot de passe requis", http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, m.TryCredentials(r.Context(), in.User, in.Password))
 }
 
 func servePage(w http.ResponseWriter, _ *http.Request) {
