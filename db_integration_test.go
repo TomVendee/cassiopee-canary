@@ -12,6 +12,10 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -114,5 +118,29 @@ func TestMariaDBIntegration(t *testing.T) {
 			"CREATE USER '"+readerUser+"'@'%' IDENTIFIED BY '"+readerPassword+"'",
 			"GRANT SELECT ON "+admin.Database+".* TO '"+readerUser+"'@'%'",
 		)
+	})
+}
+
+func TestMongoIntegration(t *testing.T) {
+	admin := adminTarget(t, "CANARY_TEST_MONGODB_URL")
+	runStoreScenario(t, admin, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		client, err := mongo.Connect(options.Client().ApplyURI(admin.URL()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer client.Disconnect(ctx)
+		// authSource=admin : comme chez Cassiopée, les comptes vivent dans la base admin.
+		adminDB := client.Database("admin")
+		_ = adminDB.RunCommand(ctx, bson.D{{Key: "dropUser", Value: readerUser}}).Err() // absent : ignoré
+		err = adminDB.RunCommand(ctx, bson.D{
+			{Key: "createUser", Value: readerUser},
+			{Key: "pwd", Value: readerPassword},
+			{Key: "roles", Value: bson.A{bson.D{{Key: "role", Value: "read"}, {Key: "db", Value: admin.Database}}}},
+		}).Err()
+		if err != nil {
+			t.Fatalf("createUser : %v", err)
+		}
 	})
 }

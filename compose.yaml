@@ -2,9 +2,10 @@
 # Identifiants calqués sur ceux que Cassiopée génère (utilisateur postgres,
 # base app). Ports hôtes décalés : 3306 est souvent déjà pris en local.
 #
-#   docker compose up -d --wait postgres mariadb
+#   docker compose up -d --wait postgres mariadb mongo
 #   CANARY_TEST_POSTGRES_URL=postgresql://postgres:canary@localhost:15432/app \
 #   CANARY_TEST_MARIADB_URL=mysql://root:canary@localhost:13306/app \
+#   CANARY_TEST_MONGODB_URL='mongodb://root:canary@localhost:37017/app?authSource=admin' \
 #     go test -race -tags integration ./...
 services:
   postgres:
@@ -33,6 +34,19 @@ services:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 2s
       timeout: 3s
+      retries: 30
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: canary
+    ports:
+      - "37017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 2s
+      timeout: 5s
       retries: 30
 
   # L'app elle-même, construite depuis le Dockerfile, branchée sur PostgreSQL.
