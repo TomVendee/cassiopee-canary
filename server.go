@@ -81,6 +81,9 @@ func NewServer(d Deps) http.Handler {
 	})
 	mux.HandleFunc("POST /api/upload", handleUpload)
 	mux.HandleFunc("GET /ws", handleWS)
+	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, buildStatus(d, r))
+	})
 	mux.HandleFunc("POST /api/db/write", func(w http.ResponseWriter, r *http.Request) {
 		if d.DB == nil {
 			http.Error(w, "base non configurée (DATABASE_URL vide)", http.StatusConflict)
@@ -176,6 +179,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 
 func stripPrefix(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = withOriginalPath(r)
 		r.URL.Path = StripToKnownRoute(r.URL.Path)
 		r.URL.RawPath = ""
 		next.ServeHTTP(w, r)
