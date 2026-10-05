@@ -330,6 +330,14 @@ const mib = (bytes) => Math.round(bytes / 1048576) + " Mio";
 const rows = (pairs) => '<dl class="rows">' + pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("") + "</dl>";
 const badge = (level) => `<span class="badge ${level}">${LEVEL_TEXT[level]}</span>`;
 const yesNo = (b) => (b ? "oui" : "non");
+// Réécrire une carte toutes les 2 s refermerait ses <details> et casserait
+// toute sélection de texte : on ne touche au DOM que si le contenu a changé.
+const lastHTML = new WeakMap();
+function setHTML(el, html) {
+  if (lastHTML.get(el) === html) return;
+  lastHTML.set(el, html);
+  el.innerHTML = html;
+}
 const colored = (level, text) => `<span style="color:var(--${level})">${text}</span>`;
 
 function post(path, body, isJSON = true) {
@@ -380,7 +388,7 @@ function renderChecks() {
   const configured = checks.filter((c) => c.level !== "na");
   $("#score").textContent = `${configured.filter((c) => c.level === "ok").length} / ${configured.length}`;
 
-  $("#legend").innerHTML = STARS.map((st) => {
+  setHTML($("#legend"), STARS.map((st) => {
     const mine = checks.filter((c) => c.star === st.id);
     const level = worst(mine.map((c) => c.level));
     const g = $("#star-" + st.id);
@@ -389,7 +397,7 @@ function renderChecks() {
     return `<div><h3><span class="dot ${level}"></span>${esc(st.label)}</h3><ul>` +
       mine.map((c) => `<li><span class="dot ${c.level}"></span><span>${esc(c.name)}<span class="detail" title="${esc(c.detail)}">${esc(c.detail)}</span></span></li>`).join("") +
       "</ul></div>";
-  }).join("");
+  }).join(""));
 
   for (const [card, ids] of Object.entries(CARD_CHECKS)) {
     const level = worst(ids.map((id) => byId[id]?.level));
@@ -414,11 +422,11 @@ function renderHeader(s) {
 }
 
 function renderApp(s) {
-  $("#card-app [data-body]").innerHTML = rows([
+  setHTML($("#card-app [data-body]"), rows([
     ["Version", `<code>${esc(s.version)}</code>`],
     ["Pod", `<code>${esc(s.pod)}</code>`],
     ["Démarré", esc(ago(s.startedAt))],
-  ]);
+  ]));
 }
 
 // Variables que Kubernetes ou l'image injectent d'office : rangées à part pour
@@ -429,29 +437,30 @@ function renderEnv(s) {
   const mine = names.filter((n) => !INJECTED.test(n));
   const injected = names.filter((n) => INJECTED.test(n));
   const kv = (list) => list.map((n) => `<span>${esc(n)}</span><span>${s.env[n] ? esc(s.env[n]) : '<i class="muted">vide</i>'}</span>`).join("");
-  $("#card-env [data-body]").innerHTML =
+  setHTML($("#card-env [data-body]"),
     (mine.length ? `<div class="kv">${kv(mine)}</div>` : '<p class="empty">Aucune variable définie dans l\'intranet.</p>') +
-    (injected.length ? `<details><summary>${injected.length} variables injectées par Kubernetes</summary><div class="kv">${kv(injected)}</div></details>` : "");
+    (injected.length ? `<details><summary>${injected.length} variables injectées par Kubernetes</summary><div class="kv">${kv(injected)}</div></details>` : ""));
 }
 
 function renderRes(s) {
   const r = s.runtime;
   const pct = r.memoryLimited && r.memoryMax ? Math.min(100, Math.round((100 * r.memoryCurrent) / r.memoryMax)) : 0;
-  $("#card-res [data-body]").innerHTML = rows([
+  setHTML($("#card-res [data-body]"), rows([
     ["CPU", r.cpuLimited ? `limite ${r.cpuMillicores}m` : "aucune limite"],
     ["Mémoire", r.memoryLimited ? `limite ${mib(r.memoryMax)}` : "aucune limite"],
     ["Utilisée", r.memoryCurrent ? mib(r.memoryCurrent) + (r.memoryLimited ? ` (${pct} %)` : "") : "inconnue"],
-  ]) + (r.memoryLimited ? `<div class="bar" aria-hidden="true"><i style="width:${pct}%"></i></div>` : "");
+  ]) + (r.memoryLimited ? `<div class="bar" aria-hidden="true"><i style="width:${pct}%"></i></div>` : ""));
 }
 
 function renderSec(s) {
   const r = s.runtime;
-  $("#card-sec [data-body]").innerHTML = rows([
+  setHTML($("#card-sec [data-body]"), rows([
     ["Utilisateur", `uid ${r.uid}, gid ${r.gid}`],
-    ["Racine / inscriptible", yesNo(r.rootWritable)],
-    ["/tmp inscriptible", yesNo(r.tmpWritable)],
+    // « / » appartient à root : sous l'uid 1000 il n'est jamais inscriptible.
+    // /tmp l'est, sauf avec readOnlyRootFilesystem : c'est lui qui renseigne.
+    ["Écriture disque (/tmp)", yesNo(r.tmpWritable)],
     ["Namespace", r.namespace ? `<code>${esc(r.namespace)}</code>` : '<span class="muted">hors Kubernetes</span>'],
-  ]);
+  ]));
 }
 
 // Les pics du tracé : chaque fois que le compteur kubelet augmente entre deux
@@ -487,7 +496,7 @@ function tracePoints(hitTimes) {
 
 function renderProbes(s) {
   const byId = Object.fromEntries(s.checks.map((c) => [c.id, c]));
-  $("#card-probes [data-body]").innerHTML = PROBES.map(({ kind, label, path, check }) => {
+  setHTML($("#card-probes [data-body]"), PROBES.map(({ kind, label, path, check }) => {
     const p = s.probes[kind] || {};
     const level = byId[check]?.level ?? "na";
     const forcedFor = p.failingUntil ? Math.round((Date.parse(p.failingUntil) - Date.now()) / 1000) : 0;
@@ -499,7 +508,7 @@ function renderProbes(s) {
       <div class="probe-facts">${esc(facts)}${forcedFor > 0 ? `<br><span class="forced">échec forcé, encore ${forcedFor} s</span>` : ""}</div>
       <svg class="trace" viewBox="0 0 300 36" preserveAspectRatio="none" aria-hidden="true"><polyline data-trace="${kind}" points="${tracePoints(state.traces[s.pod]?.[kind] ?? [])}"/></svg>
     </div>`;
-  }).join("") + `<p class="note">Compteurs du pod <code>${esc(shortPod(s.pod))}</code> : chaque pod a les siens.</p>`;
+  }).join("") + `<p class="note">Compteurs du pod <code>${esc(shortPod(s.pod))}</code> : chaque pod a les siens.</p>`);
 }
 
 function animateTraces() {
@@ -514,20 +523,20 @@ function animateTraces() {
 function renderEndpoint(s) {
   const h = s.headers;
   const prefix = (s.requestPath || "").replace(/api\/status$/, "") || "/";
-  $("#card-endpoint [data-body]").innerHTML = rows([
+  setHTML($("#card-endpoint [data-body]"), rows([
     ["Hôte", `<code>${esc(h.Host)}</code>`],
     ["Protocole", esc(h["X-Forwarded-Proto"] || "accès direct")],
     ["Client", `<code>${esc(h["X-Forwarded-For"] || "–")}</code>`],
     ["Préfixe reçu", `<code>${esc(prefix)}</code>`],
-  ]);
-  $("#headers").innerHTML = Object.keys(h).sort().map((k) => `<span>${esc(k)}</span><span>${esc(h[k])}</span>`).join("");
+  ]));
+  setHTML($("#headers"), Object.keys(h).sort().map((k) => `<span>${esc(k)}</span><span>${esc(h[k])}</span>`).join(""));
 }
 
 function renderDB(s) {
   const body = $("#card-db [data-body]");
   const db = s.db;
   if (!db) {
-    body.innerHTML = '<p class="empty">Aucune base. Coller dans <code>DATABASE_URL</code> le <code>connection_string</code> affiché à la création de la base.</p>';
+    setHTML(body, '<p class="empty">Aucune base. Coller dans <code>DATABASE_URL</code> le <code>connection_string</code> affiché à la création de la base.</p>');
     return;
   }
   const reach = db.reachable
@@ -539,29 +548,29 @@ function renderDB(s) {
     ["Connexion", `<code>${esc(db.user)}</code> sur <code>${esc(db.database)}</code>`],
   ];
   if (db.lastError) lines.push(["Erreur", `<span class="error" style="margin:0">${esc(db.lastError)}</span>`]);
-  body.innerHTML = `<div class="big">${db.rows.toLocaleString("fr-FR")}</div>
-    <p class="note" style="margin:0 0 10px">lignes dans <code>canary_hits</code>, dernière ${esc(ago(db.lastWrite))}</p>` + rows(lines);
+  setHTML(body, `<div class="big">${db.rows.toLocaleString("fr-FR")}</div>
+    <p class="note" style="margin:0 0 10px">lignes dans <code>canary_hits</code>, dernière ${esc(ago(db.lastWrite))}</p>` + rows(lines));
 }
 
 function renderNet(s) {
   const e = s.egress;
   const body = $("#card-net [data-body]");
-  if (!e) { body.innerHTML = '<p class="empty">Première mesure en cours.</p>'; return; }
+  if (!e) { setHTML(body, '<p class="empty">Première mesure en cours.</p>'); return; }
   const dns = (r) => r.ok ? colored("ok", "résolu") : colored("ko", "échec") + ` <span class="muted">${esc(r.error)}</span>`;
-  body.innerHTML = rows([
+  setHTML(body, rows([
     ["DNS interne", dns(e.internalDns) + ` <code class="muted">${esc(e.internalHost)}</code>`],
     ["DNS externe", dns(e.externalDns)],
     ["HTTPS sortant", e.https.ok ? "ouvert" : `fermé <span class="muted">(${esc(e.https.error)})</span>`],
     ["Mesuré", esc(ago(e.checkedAt))],
-  ]) + '<p class="note">La sortie vers Internet dépend d\'un réglage de SiOps : fermée n\'est pas une panne.</p>';
+  ]) + '<p class="note">La sortie vers Internet dépend d\'un réglage de SiOps : fermée n\'est pas une panne.</p>');
 }
 
 function renderCron(s) {
   const body = $("#card-cron [data-body]");
   if (s.cron.length) {
-    body.innerHTML = s.cron.map((h) =>
+    setHTML(body, s.cron.map((h) =>
       `<div class="cron-row"><code>${esc(shortPod(h.pod))}</code><span class="muted">${esc(ago(h.receivedAt))}</span><span class="badge ${h.exitCode === 0 ? "ok" : "warn"}">code ${esc(h.exitCode)}</span></div>`
-    ).join("");
+    ).join(""));
     return;
   }
   // Le CronJob doit joindre CETTE app : on propose son propre nom de service.
@@ -569,15 +578,15 @@ function renderCron(s) {
   const target = r.deployment && r.namespace
     ? `http://${r.deployment}.${r.namespace}.svc.cluster.local:<port du service>`
     : "http://<nom de l'app>:<port du service>";
-  body.innerHTML = `<p class="empty">Aucun battement reçu. Créer une application de type CronJob avec la même image, <code>CANARY_MODE=cron</code> et <code>CANARY_REPORT_URL=${esc(target)}</code>.</p>`;
+  setHTML(body, `<p class="empty">Aucun battement reçu. Créer une application de type CronJob avec la même image, <code>CANARY_MODE=cron</code> et <code>CANARY_REPORT_URL=${esc(target)}</code>.</p>`);
 }
 
 function renderWS() {
   const w = state.ws, sil = state.silence;
   const lines = [["Écho", w.level === "ok" ? `${w.latency} ms` : esc(w.detail)]];
   if (sil) lines.push(["Silence", esc(sil.result ?? `en cours, ${sil.elapsed} s`)]);
-  $("#card-ws [data-body]").innerHTML = rows(lines) +
-    '<p class="note">Pendant le silence, rien ne circule : une coupure vient du <code>proxyReadTimeout</code> de l\'endpoint.</p>';
+  setHTML($("#card-ws [data-body]"), rows(lines) +
+    '<p class="note">Pendant le silence, rien ne circule : une coupure vient du <code>proxyReadTimeout</code> de l\'endpoint.</p>');
 }
 
 function render() {
@@ -597,14 +606,15 @@ function render() {
 
 // ---------- rafraîchissement ----------
 async function poll() {
+  const sentAt = Date.now(); // une requête bloquée compte depuis son envoi
   try {
-    const res = await fetch(BASE + "api/status", { cache: "no-store" });
+    const res = await fetch(BASE + "api/status", { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error("HTTP " + res.status);
     state.status = await res.json();
     state.failingSince = null;
     recordHits(state.status);
   } catch {
-    state.failingSince ??= Date.now();
+    state.failingSince ??= sentAt;
   }
   render();
   setTimeout(poll, POLL_MS);
