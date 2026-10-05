@@ -15,7 +15,7 @@ var postgresDialect = dialect{
 	dsn:        DBTarget.URL,
 	createSQL:  "CREATE TABLE IF NOT EXISTS canary_hits (id BIGSERIAL PRIMARY KEY, pod TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
 	insertSQL:  "INSERT INTO canary_hits (pod) VALUES ($1)",
-	versionSQL: "SELECT version()",
+	versionSQL: "SELECT 'PostgreSQL ' || current_setting('server_version')",
 	isAuthError: func(err error) bool {
 		// 28P01 : mot de passe invalide ; 28000 : autorisation refusée.
 		var pgErr *pgconn.PgError

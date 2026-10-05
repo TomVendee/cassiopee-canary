@@ -75,6 +75,14 @@ func TestEvaluateRules(t *testing.T) {
 		{"ready un seul appel", 5, func(in *CheckInput) {
 			in.Probes[ProbeReady] = ProbeState{Hits: 1, LastHit: now0.Add(-time.Hour)}
 		}, LevelOK, "sondes"},
+		{"ready en échec forcé", 5, func(in *CheckInput) {
+			in.Probes[ProbeReady] = ProbeState{Hits: 3, LastHit: now0.Add(-2 * time.Second), IntervalSeconds: 10,
+				FailingUntil: now0.Add(30 * time.Second), Healthy: false}
+		}, LevelWarn, "sondes"},
+		{"live en échec forcé", 6, func(in *CheckInput) {
+			in.Probes[ProbeLive] = ProbeState{Hits: 3, LastHit: now0.Add(-2 * time.Second), IntervalSeconds: 10,
+				FailingUntil: now0.Add(30 * time.Second), Healthy: false}
+		}, LevelWarn, "sondes"},
 		{"live plus appelée", 6, func(in *CheckInput) {
 			in.Probes[ProbeLive] = ProbeState{Hits: 3, LastHit: now0.Add(-31 * time.Second), IntervalSeconds: 10}
 		}, LevelWarn, "sondes"},

@@ -104,6 +104,11 @@ func checkProbe(id int, name string, p ProbeState, now time.Time) Check {
 		c.Level = LevelWarn
 		c.Detail += fmt.Sprintf(" (attendu toutes les %.0f s)", p.IntervalSeconds)
 	}
+	// Un échec forcé répond 503 à kubelet : la sonde ne peut pas rester verte.
+	if p.FailingUntil.After(now) {
+		c.Level = LevelWarn
+		c.Detail = fmt.Sprintf("échec forcé, encore %d s", int(p.FailingUntil.Sub(now).Seconds()))
+	}
 	return c
 }
 
