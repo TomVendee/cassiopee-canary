@@ -142,7 +142,10 @@ func checkDB(db *DBStatus, now time.Time) Check {
 	case db.AuthFailed:
 		c.Level, c.Detail = LevelKO, "authentification refusée : "+db.LastError
 	case db.Reachable && db.WriteOK:
-		c.Level, c.Detail = LevelOK, fmt.Sprintf("%s, %d lignes", db.Engine, db.Rows)
+		c.Level, c.Detail = LevelOK, fmt.Sprintf("%s, %d ligne", db.Engine, db.Rows)
+		if db.Rows > 1 {
+			c.Detail += "s"
+		}
 	case db.Reachable:
 		c.Level, c.Detail = LevelWarn, "joignable, écriture en échec : "+db.LastError
 	default:

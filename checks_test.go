@@ -53,6 +53,18 @@ func TestEvaluateIDsAndAllGreen(t *testing.T) {
 	}
 }
 
+func TestDBDetailSingular(t *testing.T) {
+	for rows, want := range map[int64]string{1: "postgresql, 1 ligne", 2: "postgresql, 2 lignes"} {
+		in := baseInput()
+		in.DB = &DBStatus{Engine: EnginePostgres, Reachable: true, WriteOK: true, Rows: rows}
+		for _, c := range Evaluate(in) {
+			if c.ID == 10 && c.Detail != want {
+				t.Errorf("détail = %q, attendu %q", c.Detail, want)
+			}
+		}
+	}
+}
+
 func TestEvaluateRules(t *testing.T) {
 	tests := []struct {
 		name   string
