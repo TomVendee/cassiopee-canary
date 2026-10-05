@@ -84,24 +84,22 @@ La version publiée s'affiche dans l'en-tête de la page : après un changement
 de tag dans l'intranet, on voit tout de suite si le nouveau pod tourne bien la
 nouvelle image.
 
-### Une seule fois : rendre le paquet public
+### Le paquet doit rester public
 
-GHCR crée tout nouveau paquet en **privé**, et Cassiopée n'a aucun champ pour
-un secret de registre : un paquet privé donne un pod bloqué en
-`ImagePullBackOff`. Après la première publication :
-
-1. GitHub → photo de profil → **Your profile** → onglet **Packages** →
-   `cassiopee-canary` ;
-2. **Package settings** (colonne de droite) ;
-3. **Danger Zone** → **Change visibility** → **Public**, puis confirmer en
-   tapant le nom du paquet.
-
-Vérification, sans être connecté au registre :
+Cassiopée n'a aucun champ pour un secret de registre : un paquet privé donne
+un pod bloqué en `ImagePullBackOff`. Publié par la CI de ce dépôt public, le
+paquet est **public d'office** (constaté le 5 octobre 2026 à la première
+publication). Pour le vérifier, sans être connecté au registre :
 
 ```bash
 docker logout ghcr.io
 docker pull ghcr.io/tomvendee/cassiopee-canary:latest
 ```
+
+Si le pull est refusé (dans un fork, par exemple), passer le paquet en public :
+GitHub → photo de profil → **Your profile** → onglet **Packages** →
+`cassiopee-canary` → **Package settings** → **Danger Zone** →
+**Change visibility** → **Public**.
 
 ## Documentation
 
