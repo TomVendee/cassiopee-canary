@@ -53,6 +53,9 @@ services:
   canary:
     build: .
     user: "1000:1000"
+    # Mêmes limites que celles que le formulaire de l'intranet impose.
+    cpus: "0.2"
+    mem_limit: 256m
     ports:
       - "8080:8080"
     environment:
