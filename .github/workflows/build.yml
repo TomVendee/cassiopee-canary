@@ -44,7 +44,7 @@ jobs:
           MONGO_INITDB_ROOT_PASSWORD: canary
         ports: ["37017:27017"]
         options: >-
-          --health-cmd "mongosh --quiet --eval 'db.adminCommand(1).ok'"
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
           --health-interval 2s --health-timeout 5s --health-retries 30
     steps:
       - uses: actions/checkout@v7
