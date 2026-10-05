@@ -2,7 +2,6 @@ package main
 
 import (
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -10,8 +9,8 @@ import (
 const Masked = "••••"
 
 // secretNameParts : une variable dont le nom contient l'un de ces mots est
-// masquée entièrement.
-var secretNameParts = []string{"PASSWORD", "SECRET", "TOKEN", "KEY"}
+// masquée entièrement. La page est publique : on préfère masquer trop.
+var secretNameParts = []string{"PASS", "PWD", "SECRET", "TOKEN", "KEY", "CREDENTIAL"}
 
 // secretHeaders sont masqués dans l'affichage des en-têtes de requête.
 var secretHeaders = map[string]bool{"Authorization": true, "Cookie": true}
@@ -46,23 +45,25 @@ func isSecretName(name string) bool {
 
 // MaskURL remplace le mot de passe d'une URL « schéma://user:pass@hôte… » par
 // Masked. Toute autre valeur revient inchangée.
+//
+// Volontairement sans url.Parse : un copier-coller avec un espace ou un retour
+// à la ligne, ou un mot de passe mal échappé, fait échouer l'analyse, et la
+// valeur fuirait telle quelle. Ici on coupe au dernier « @ » : dans le doute,
+// on masque trop plutôt que pas assez.
 func MaskURL(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil || u.User == nil {
-		return raw
-	}
-	if _, has := u.User.Password(); !has {
-		return raw
-	}
-	// On remplace dans la chaîne d'origine plutôt que de passer par
-	// u.String(), qui encoderait les puces en %E2%80%A2.
-	scheme, rest, _ := strings.Cut(raw, "://")
-	userinfo, after, found := strings.Cut(rest, "@")
+	scheme, rest, found := strings.Cut(raw, "://")
 	if !found {
 		return raw
 	}
-	user, _, _ := strings.Cut(userinfo, ":")
-	return scheme + "://" + user + ":" + Masked + "@" + after
+	at := strings.LastIndex(rest, "@")
+	if at < 0 {
+		return raw
+	}
+	user, _, hasPassword := strings.Cut(rest[:at], ":")
+	if !hasPassword {
+		return raw
+	}
+	return scheme + "://" + user + ":" + Masked + rest[at:]
 }
 
 // MaskHeaders aplatit les en-têtes d'une requête pour l'affichage, en masquant

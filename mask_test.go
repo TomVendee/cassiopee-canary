@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +40,31 @@ func TestMaskURL(t *testing.T) {
 	for in, want := range tests {
 		if got := MaskURL(in); got != want {
 			t.Errorf("MaskURL(%q) = %q, attendu %q", in, got, want)
+		}
+	}
+}
+
+// TestMaskURLFailsClosed : les valeurs que url.Parse refuse ne doivent pas
+// fuir pour autant. Ce sont justement celles d'un copier-coller maladroit.
+func TestMaskURLFailsClosed(t *testing.T) {
+	for _, in := range []string{
+		" postgresql://u:SECRETPW@h:5432/app",
+		"postgresql://u:SECRETPW@h:5432/app\n",
+		"postgresql://u:SEC%zzPW@h/app",
+		"postgresql://u:SEC@RETPW@h/app",
+	} {
+		got := MaskURL(in)
+		if strings.Contains(got, "SEC") || strings.Contains(got, "PW") || !strings.Contains(got, Masked) {
+			t.Errorf("MaskURL(%q) = %q : mot de passe visible", in, got)
+		}
+	}
+}
+
+func TestMaskEnvNameVariants(t *testing.T) {
+	got := MaskEnv([]string{"DB_PASS=x", "MY_PWD=x", "AWS_CREDENTIALS=x", "PASSPHRASE=x"})
+	for name, v := range got {
+		if v != Masked {
+			t.Errorf("%s = %q, attendu masqué", name, v)
 		}
 	}
 }
