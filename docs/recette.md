@@ -86,7 +86,7 @@ Endpoints → créer.
 | Configuration | Nom | `canary` |
 | | Service cible | `canary` |
 | | Port du service | `80` |
-| | Host | `canary-<votre login>.cassiopee.sigl.epita.fr` |
+| | Host | `canary-<votre login>.cassiopee.sigl.epita.fr`, **tout en minuscules** |
 | | Path | `/canary` |
 | | Path type | `Prefix` |
 | TLS | | activé, Issuer `letsencrypt` |
@@ -95,8 +95,15 @@ Endpoints → créer.
 
 Le domaine `*.cassiopee.sigl.epita.fr` est celui que l'intranet propose (et
 qu'il utilise en méthode Standard). Le login dans l'hôte évite de prendre le
-nom d'un autre utilisateur. Le nom exact de l'issuer n'est pas documenté : si
-le certificat n'arrive pas, c'est un résultat à noter.
+nom d'un autre utilisateur. L'issuer `letsencrypt` est celui qu'utilise le
+backend de SiOps lui-même, avec un vrai certificat.
+
+**Hôte en minuscules, obligatoirement.** Kubernetes refuse un hôte d'Ingress
+qui contient une majuscule. Ni Cassiopée ni son chart ne corrigent l'hôte :
+l'Ingress n'est jamais créé et l'endpoint reste `provisioning` sans la moindre
+erreur (constaté en prod le 06/10/2026 avec `canary-TV…`). Une version de
+l'intranet qui passe le champ en minuscules d'office est en cours ; d'ici là,
+saisir l'hôte en minuscules.
 
 Ouvrir `https://canary-<votre login>.cassiopee.sigl.epita.fr/canary/`.
 
@@ -263,6 +270,7 @@ revenir à 0/3, ou à ce qu'occupe encore une base en période de grâce.
 | L'application ne passe jamais à `deployed` | Paquet GHCR privé (`ImagePullBackOff`) | `docker logout ghcr.io && docker pull ghcr.io/tomvendee/cassiopee-canary:latest` doit réussir |
 | Page en 503 dès le départ | Readiness en échec, ou mauvais port de sonde | Port des sondes = `8080` ; attendre la fin du `STARTUP_DELAY` |
 | Page en 502 ou 504 | Port cible du service resté à 80 (valeur par défaut cachée du formulaire), port d'écoute hors NetworkPolicy, ou port du service faux | Port cible et port du conteneur = `8080`, saisis à la main ; port du service de l'endpoint = port du service de l'app |
+| Endpoint bloqué en `provisioning` | Hôte refusé par Kubernetes : majuscule, `_`, `http://` ou chemin dans le champ Host. L'Ingress n'est jamais créé | Modifier l'endpoint avec un hôte en minuscules. Pour confirmer : `curl -sk https://<host>/` répond le 404 générique de nginx avec le certificat « Kubernetes Ingress Controller Fake Certificate », comme pour un hôte inventé |
 | Page en 404 | Path de l'endpoint ou hôte différent de l'URL ouverte | Ouvrir `https://<host><path>/` exactement |
 | Certificat invalide | Issuer inconnu ou certificat pas encore émis | Attendre quelques minutes, puis noter le nom d'issuer essayé |
 | 429 à la création | Quota atteint | Tuile de quota ; une base supprimée compte peut-être encore 7 jours |
