@@ -1,0 +1,103 @@
+# Tests à chaque PR ; image publiée sur GHCR à chaque push sur main et à
+# chaque tag vX.Y.Z. Aucun secret à créer : GITHUB_TOKEN suffit.
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Mêmes bases et mêmes ports que compose.yaml.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: canary
+          POSTGRES_DB: app
+        ports: ["15432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: canary
+          MARIADB_DATABASE: app
+          MARIADB_USER: mariadb
+          MARIADB_PASSWORD: canary
+        ports: ["13306:3306"]
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      mongo:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: root
+          MONGO_INITDB_ROOT_PASSWORD: canary
+        ports: ["37017:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(1).ok'"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Formatage (gofmt)
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "$unformatted"; exit 1; fi
+      - run: go vet ./... && go vet -tags integration ./...
+      - name: Tests unitaires
+        run: go test -race ./...
+      - name: Tests d'intégration
+        env:
+          CANARY_TEST_POSTGRES_URL: postgresql://postgres:canary@localhost:15432/app
+          CANARY_TEST_MARIADB_URL: mysql://root:canary@localhost:13306/app
+          CANARY_TEST_MONGODB_URL: mongodb://root:canary@localhost:37017/app?authSource=admin
+        run: go test -race -tags integration ./...
+
+  image:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/tomvendee/cassiopee-canary
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+      # Version affichée sur la page : 1.2.3 pour un tag, sha-abc1234 sinon.
+      - id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: VERSION=${{ steps.version.outputs.value }}

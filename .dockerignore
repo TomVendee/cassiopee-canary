@@ -1,0 +1,6 @@
+.git
+.superpowers
+docs
+*.md
+compose.yaml
+/canary
