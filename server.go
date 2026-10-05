@@ -80,6 +80,7 @@ func NewServer(d Deps) http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("POST /api/upload", handleUpload)
+	mux.HandleFunc("GET /ws", handleWS)
 	mux.HandleFunc("POST /api/db/write", func(w http.ResponseWriter, r *http.Request) {
 		if d.DB == nil {
 			http.Error(w, "base non configurée (DATABASE_URL vide)", http.StatusConflict)
