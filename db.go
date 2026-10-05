@@ -126,15 +126,14 @@ func (m *Monitor) Run(ctx context.Context, every time.Duration) {
 	}
 }
 
-// Tick fait un tour : ping, puis à chaque (re)connexion création de la table
-// et écriture d'une ligne, ce qui prouve l'écriture ; sinon simple comptage.
-// Les appels à la base se font hors du verrou, pour que la page ne les attende
-// jamais.
+// Tick fait un tour : ping, puis création de la table et écriture d'une ligne
+// à chaque (re)connexion et tant que la dernière écriture a échoué, ce qui
+// prouve l'écriture ; sinon simple comptage. Les appels à la base se font hors
+// du verrou, pour que la page ne les attende jamais.
 func (m *Monitor) Tick(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, StepTimeout)
-	defer cancel()
-
-	version, err := m.store.Ping(ctx)
+	pingCtx, cancelPing := context.WithTimeout(ctx, StepTimeout)
+	version, err := m.store.Ping(pingCtx)
+	cancelPing()
 	if err != nil {
 		authFailed := m.store.IsAuthError(err)
 		m.mu.Lock()
@@ -150,10 +149,14 @@ func (m *Monitor) Tick(ctx context.Context) {
 
 	m.mu.Lock()
 	reconnected := !m.status.Reachable
+	needWrite := reconnected || !m.status.WriteOK
 	m.mu.Unlock()
 
+	// Budget à part : un ping lent ne doit pas priver l'écriture de ses 5 s.
+	ctx, cancel := context.WithTimeout(ctx, StepTimeout)
+	defer cancel()
 	var writeErr error
-	if reconnected {
+	if needWrite {
 		writeErr = m.store.EnsureSchema(ctx)
 		if writeErr == nil {
 			writeErr = m.store.Write(ctx, m.pod)
@@ -165,6 +168,8 @@ func (m *Monitor) Tick(ctx context.Context) {
 	defer m.mu.Unlock()
 	if reconnected {
 		m.status.Since = m.now()
+	}
+	if needWrite {
 		m.status.WriteOK = writeErr == nil
 	}
 	m.status.Reachable = true
@@ -195,10 +200,14 @@ func (m *Monitor) Write(ctx context.Context) error {
 	if err := m.store.Write(ctx, m.pod); err != nil {
 		return err
 	}
-	if rows, last, err := m.store.Count(ctx); err == nil {
-		m.mu.Lock()
+	rows, last, countErr := m.store.Count(ctx)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// L'écriture vient de réussir : l'alerte « écriture en échec » tombe.
+	m.status.WriteOK = true
+	m.status.LastError = ""
+	if countErr == nil {
 		m.status.Rows, m.status.LastWrite = rows, last
-		m.mu.Unlock()
 	}
 	return nil
 }

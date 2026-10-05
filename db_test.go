@@ -144,6 +144,49 @@ func TestMonitorRecovers(t *testing.T) {
 	}
 }
 
+// TestMonitorRetriesFailedWrite : une écriture ratée à la connexion ne doit
+// pas laisser la base orange pour toujours, ni effacer la raison de l'échec.
+func TestMonitorRetriesFailedWrite(t *testing.T) {
+	clock := newFakeClock()
+	f := &fakeStore{writeErr: errors.New("permission denied")}
+	m := NewMonitor(f, testTarget, "pod-a", clock.Now)
+	ctx := context.Background()
+
+	m.Tick(ctx)
+	if s := m.Status(); !s.Reachable || s.WriteOK || !strings.Contains(s.LastError, "permission denied") {
+		t.Fatalf("tick 1 : %+v", s)
+	}
+	clock.Advance(5 * time.Second)
+	m.Tick(ctx)
+	if s := m.Status(); s.WriteOK || !strings.Contains(s.LastError, "permission denied") {
+		t.Errorf("tick 2 : la raison de l'échec a disparu : %+v", s)
+	}
+
+	f.mu.Lock()
+	f.writeErr = nil
+	f.mu.Unlock()
+	clock.Advance(5 * time.Second)
+	m.Tick(ctx)
+	if s := m.Status(); !s.WriteOK || s.LastError != "" || f.writes != 1 {
+		t.Errorf("tick 3 : l'écriture doit être retentée et réussir : %+v, %d écritures", s, f.writes)
+	}
+}
+
+func TestManualWriteClearsWriteFailure(t *testing.T) {
+	f := &fakeStore{writeErr: errors.New("disk full")}
+	m := NewMonitor(f, testTarget, "pod-a", time.Now)
+	m.Tick(context.Background())
+	f.mu.Lock()
+	f.writeErr = nil
+	f.mu.Unlock()
+	if err := m.Write(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if s := m.Status(); !s.WriteOK || s.LastError != "" {
+		t.Errorf("après une écriture manuelle réussie : %+v", s)
+	}
+}
+
 func dbDeps(f *fakeStore) Deps {
 	d := testDeps(Config{})
 	if f != nil {
