@@ -2,8 +2,9 @@
 # Identifiants calqués sur ceux que Cassiopée génère (utilisateur postgres,
 # base app). Ports hôtes décalés : 3306 est souvent déjà pris en local.
 #
-#   docker compose up -d --wait postgres
+#   docker compose up -d --wait postgres mariadb
 #   CANARY_TEST_POSTGRES_URL=postgresql://postgres:canary@localhost:15432/app \
+#   CANARY_TEST_MARIADB_URL=mysql://root:canary@localhost:13306/app \
 #     go test -race -tags integration ./...
 services:
   postgres:
@@ -15,6 +16,21 @@ services:
       - "15432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: canary
+      MARIADB_DATABASE: app
+      MARIADB_USER: mariadb
+      MARIADB_PASSWORD: canary
+    ports:
+      - "13306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 2s
       timeout: 3s
       retries: 30

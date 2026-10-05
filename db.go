@@ -76,6 +76,8 @@ func Open(t DBTarget) (Store, error) {
 	switch t.Engine {
 	case EnginePostgres:
 		return openSQL(t, postgresDialect)
+	case EngineMariaDB:
+		return openSQL(t, mariadbDialect)
 	default:
 		return nil, fmt.Errorf("moteur %q pas encore pris en charge", t.Engine)
 	}

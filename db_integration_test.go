@@ -105,3 +105,14 @@ func TestPostgresIntegration(t *testing.T) {
 		)
 	})
 }
+
+func TestMariaDBIntegration(t *testing.T) {
+	admin := adminTarget(t, "CANARY_TEST_MARIADB_URL")
+	runStoreScenario(t, admin, func(t *testing.T) {
+		execSQL(t, "mysql", MySQLDSN(admin),
+			"DROP USER IF EXISTS '"+readerUser+"'@'%'",
+			"CREATE USER '"+readerUser+"'@'%' IDENTIFIED BY '"+readerPassword+"'",
+			"GRANT SELECT ON "+admin.Database+".* TO '"+readerUser+"'@'%'",
+		)
+	})
+}
