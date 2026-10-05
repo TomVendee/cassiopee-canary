@@ -21,8 +21,8 @@ d'env. Les variables injectées par Kubernetes (`KUBERNETES_*`, `*_SERVICE_HOST`
 `*_PORT…`) et par l'image (`PATH`, `HOME`, `HOSTNAME`, `SSL_CERT_FILE`) sont
 rangées à part.
 
-**Masquage.** Une variable dont le nom contient `PASSWORD`, `SECRET`, `TOKEN`
-ou `KEY` s'affiche `••••`. Une valeur de forme `schéma://utilisateur:mot-de-passe@…`
+**Masquage.** Une variable dont le nom contient `PASS`, `PWD`, `SECRET`, `TOKEN`,
+`KEY` ou `CREDENTIAL` s'affiche `••••`. Une valeur de forme `schéma://utilisateur:mot-de-passe@…`
 garde tout sauf le mot de passe. Les en-têtes `Authorization` et `Cookie` sont
 masqués de la même façon.
 
@@ -91,7 +91,7 @@ données.
 | `requestPath` | chemin reçu par le pod, préfixe compris : montre ce que l'ingress transmet |
 | `env` | variables d'environnement, masquées |
 | `headers` | en-têtes de cette requête, masqués, `Host` compris |
-| `runtime` | `uid`, `gid`, `namespace`, `deployment` (deviné du nom du pod), `cpuMillicores`, `cpuLimited`, `memoryMax`, `memoryCurrent`, `memoryLimited`, `rootWritable`, `tmpWritable` |
+| `runtime` | `uid`, `gid`, `namespace`, `deployment` (deviné du nom du pod), `cpuMillicores`, `cpuLimited`, `memoryMax`, `memoryCurrent`, `memoryLimited`, `rootWritable`, `tmpWritable`. La page n'affiche que `tmpWritable` : sous l'uid 1000, `/` appartient à root et n'est jamais inscriptible, alors que `/tmp` ne l'est plus avec `readOnlyRootFilesystem` |
 | `probes` | par sonde (`startup`, `ready`, `live`) : `hits` (appels kubelet), `lastHit`, `intervalSeconds` (écart moyen des 10 derniers appels), `failingUntil`, `healthy` |
 | `db` | `null` sans base, sinon `engine`, `version`, `user`, `database`, `reachable`, `since` (début de l'état courant), `lastError`, `authFailed`, `writeOk`, `rows`, `lastWrite` |
 | `egress` | `null` avant la première mesure, sinon `internalHost`, `internalDns`, `externalDns`, `https`, `checkedAt`. Mesuré toutes les 30 s en tâche de fond. |

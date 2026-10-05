@@ -267,6 +267,7 @@ revenir à 0/3, ou à ce qu'occupe encore une base en période de grâce.
 | Certificat invalide | Issuer inconnu ou certificat pas encore émis | Attendre quelques minutes, puis noter le nom d'issuer essayé |
 | 429 à la création | Quota atteint | Tuile de quota ; une base supprimée compte peut-être encore 7 jours |
 | 500 « Forbidden » à la création d'une base | Namespace pas encore créé (compte sans ressource) | Créer d'abord une application, attendre `deployed` |
+| Page en 503 juste après avoir ajouté `DATABASE_URL`, l'application redémarre en boucle | `DATABASE_URL` illisible (schéma inconnu, hôte ou nom de base manquant) : l'app refuse de démarrer, code de sortie 2 | Recoller le `connection_string` tel quel ; le message d'erreur des journaux du pod nomme la variable, sans le mot de passe |
 | Base orange dès le départ | `DATABASE_URL` mal copiée, ou base pas encore `deployed` | Carte Base, ligne Erreur ; hôte attendu `<nom>-<moteur>` |
 | Base rouge « authentification refusée » | Le mot de passe a changé (rotation effective) | Mettre le nouveau mot de passe dans `DATABASE_URL` |
 | Étoile Endpoint orange | Arrivée en HTTP | TLS de l'endpoint ; ouvrir l'URL en `https://` |

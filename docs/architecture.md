@@ -71,10 +71,11 @@ de la base que l'écriture marche encore.
 8080, 443 et 8443. Sur un autre port, tout semble déployé, mais l'endpoint
 répond 502 ou 504.
 
-**`EXPOSE 8080` dans le Dockerfile.** Si le port cible du service reste vide,
+**`EXPOSE 8080` dans le Dockerfile.** Si le port cible du service est absent,
 SiOps lit le port déclaré par l'image, en anonyme, sur le registre
-(`registry_service.py`). C'est une fonctionnalité de plus à tester, et elle
-exige un paquet public.
+(`registry_service.py`). L'intranet, lui, envoie toujours un port (80 par
+défaut, voir la recette) : l'`EXPOSE` ne sert donc qu'aux appels directs à
+l'API de Cassiopée, et la détection ne se teste pas depuis l'intranet.
 
 **Image distroless, `USER 1000:1000`.** Le formulaire de l'intranet impose
 `runAsNonRoot` et `runAsUser: 1000`. L'image ne contient ni shell ni
