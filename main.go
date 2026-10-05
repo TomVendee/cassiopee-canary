@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -40,7 +41,23 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
 
+	if cfg.Mode == "cron" {
+		os.Exit(RunCron(cfg, pod, &http.Client{Timeout: 10 * time.Second}, time.Now))
+	}
 	os.Exit(runWeb(ctx, cfg, pod))
+}
+
+// egressCheck prépare la mesure du réseau sortant : DNS de la base (sinon de
+// l'API Kubernetes), DNS public et HTTPS vers example.com, en 3 s au plus.
+func egressCheck(cfg Config) func(context.Context) EgressResult {
+	internal := "kubernetes.default.svc"
+	if cfg.DB != nil {
+		internal = cfg.DB.Host
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	return func(ctx context.Context) EgressResult {
+		return CheckEgress(ctx, net.DefaultResolver, client, internal, "https://example.com")
+	}
 }
 
 // runWeb démarre le serveur et le garde jusqu'à l'annulation de ctx, puis
@@ -53,9 +70,12 @@ func runWeb(ctx context.Context, cfg Config, pod string) int {
 		Started: time.Now(),
 		Now:     time.Now,
 		Probes:  NewProbes(cfg.StartupDelay, time.Now),
+		Cron:    NewCronLog(time.Now),
+		Egress:  NewEgressWatcher(egressCheck(cfg)),
 		Runtime: func() Runtime { return ReadRuntime(pod, cgroupDir, namespaceFile) },
 		Environ: os.Environ,
 	}
+	go d.Egress.Run(ctx, 30*time.Second)
 
 	if cfg.DB != nil {
 		store, err := Open(*cfg.DB)

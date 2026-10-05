@@ -94,6 +94,9 @@ func NewServer(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/db/credentials", func(w http.ResponseWriter, r *http.Request) {
 		handleCredentials(w, r, d.DB)
 	})
+	mux.HandleFunc("POST /api/cron", func(w http.ResponseWriter, r *http.Request) {
+		handleCron(w, r, d.Cron)
+	})
 
 	return stripPrefix(requireToken(d.Cfg.Token, mux))
 }

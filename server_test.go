@@ -20,6 +20,7 @@ func testDeps(cfg Config) Deps {
 		Started: time.Now(),
 		Now:     time.Now,
 		Probes:  NewProbes(cfg.StartupDelay, time.Now),
+		Cron:    NewCronLog(time.Now),
 		Runtime: func() Runtime { return Runtime{Pod: "canary-7f9c8d6b5-x2k9p", UID: 1000} },
 		Environ: func() []string { return nil },
 	}
