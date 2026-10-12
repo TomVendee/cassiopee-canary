@@ -43,6 +43,10 @@ code { font-family: var(--mono); font-size: 13px; }
 /* En-tête */
 header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
 h1 { font: italic 400 34px/1.1 var(--serif); margin: 0 0 10px; letter-spacing: .01em; }
+.ver { font: 600 13px var(--mono); font-style: normal; vertical-align: middle; margin-left: 10px; padding: 3px 9px; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent); }
+.ver[hidden] { display: none; }
+body[data-major="2"] { --accent: #c9a0ff; --line: #3a2d5e; }
+body[data-major="2"] .ver { background: #2a1d4a; }
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; margin: 0; font-size: 13px; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
@@ -154,7 +158,7 @@ form label { font-size: 12.5px; color: var(--muted); display: grid; gap: 3px; }
 <main>
   <header>
     <div>
-      <h1>Cassiopée canary</h1>
+      <h1>Cassiopée canary<span class="ver" id="ver" hidden></span></h1>
       <dl class="facts">
         <dt>Pod</dt><dd id="f-pod">…</dd>
         <dt>Version</dt><dd id="f-version">…</dd>
@@ -413,6 +417,10 @@ function renderChecks() {
 function renderHeader(s) {
   $("#f-pod").textContent = s.pod;
   $("#f-version").textContent = s.version;
+  const ver = $("#ver"), m = /^v?(\d+)\./.exec(s.version);
+  ver.hidden = !m;
+  ver.textContent = m ? "v" + s.version.replace(/^v/, "") : "";
+  document.body.dataset.major = m ? m[1] : "";
   $("#f-uptime").textContent = duration(s.uptimeSeconds);
   $("#f-url").textContent = location.host + BASE;
   const warn = $("#port-warning");
