@@ -417,16 +417,28 @@ function renderChecks() {
 function renderHeader(s) {
   $("#f-pod").textContent = s.pod;
   $("#f-version").textContent = s.version;
-  const ver = $("#ver"), m = /^v?(\d+)\./.exec(s.version);
-  ver.hidden = !m;
-  ver.textContent = m ? "v" + s.version.replace(/^v/, "") : "";
-  document.body.dataset.major = m ? m[1] : "";
-  $("#f-uptime").textContent = duration(s.uptimeSeconds);
-  $("#f-url").textContent = location.host + BASE;
+  renderVersionBadge(s.version);
   const warn = $("#port-warning");
   warn.hidden = s.portAllowed;
   warn.textContent = s.portAllowed ? "" :
     `L'app écoute sur le port ${s.port}, que la NetworkPolicy de Cassiopée ne laisse pas passer depuis l'ingress. Utiliser 80, 8080, 443 ou 8443.`;
+}
+
+// Pastille de version. Un tag vX.Y.Z garde l'accent de sa version majeure ;
+// un build de main (sha-…) prend une teinte tirée du hash, pour qu'un nouveau
+// build se voie sans lire le texte.
+function renderVersionBadge(version) {
+  const ver = $("#ver"), body = document.body;
+  ver.hidden = !version || version === "dev";
+  ver.textContent = /^\d/.test(version) ? "v" + version : version;
+  const m = /^v?(\d+)\./.exec(version);
+  body.dataset.major = m ? m[1] : "";
+  body.style.removeProperty("--accent");
+  if (!m && !ver.hidden) {
+    let h = 0;
+    for (const c of version) h = (h * 31 + c.charCodeAt(0)) % 360;
+    body.style.setProperty("--accent", `hsl(${h} 70% 72%)`);
+  }
 }
 
 function renderApp(s) {
